@@ -310,11 +310,22 @@ export function tickClock(ticks: number[], hours: number): (ms: number) => strin
   return ticks.length > 0 && ticks.every(midnight) ? MMDD.format : clockFor(hours)
 }
 
-// Ticks on round clock values across `[from, to]`, in epoch milliseconds.
+// Ticks on round clock values across `[from, to]`.
+//
+// The arguments are epoch SECONDS, which is what the hub sends for a bucket's
+// `ts`, and the return values are epoch MILLISECONDS, which is what `Date` takes.
+// The two used to be the same unit here while the caller passed seconds: every
+// step was computed as (seconds of span) / (milliseconds of step) and came out
+// as a fraction of zero, so the loop emitted a single tick positioned by the
+// remainder of the start second rather than by the clock. A six-hour window got
+// one label at an arbitrary minute, and it looked plausible enough to read as
+// data. The conversion is explicit here and only here.
 const TICK_STEPS = [1, 2, 5, 10, 15, 30, 60, 120, 180, 360, 720, 1440, 2880, 10080, 20160].map((m) => m * 60_000)
 const TICK_MONTHS = [1, 2, 3, 6, 12]
 
-export function timeTicks(from: number, to: number, count = 8): number[] {
+export function timeTicks(fromSec: number, toSec: number, count = 8): number[] {
+  const from = fromSec * 1000
+  const to = toSec * 1000
   const step = TICK_STEPS.find((s) => (to - from) / s <= count)
   if (step === undefined) return monthTicks(from, to, count)
   const zone = new Date(from).getTimezoneOffset() * 60_000
