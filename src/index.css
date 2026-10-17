@@ -582,17 +582,18 @@ html:not([data-hairline]) .chart {
 
 /* The bars and the plan capsules share the same five-track cells, so a capsule
    sits under a bar and the pair reads as one table of four figures. */
-/* The band and the plan row, placed on the card's ten tracks.
+/* The band and the plan row share one vertical seam.
  *
- * The two traffic bars are five tracks each: ten tracks divide by two, so they
- * are equal AND span the card edge to edge. Anterior versions placed them at
- * 1/4 and 4/7 -- track numbers written for a six-track grid -- so both bars
- * together covered only the left half of the card and the right half of the
- * row was empty.
+ * Four capsules in two rows. The seam between them has to be the same vertical
+ * line in both rows, or the two rows read as two unrelated strips: the previous
+ * version split the traffic bars 5:5 (seam at track 6) but the plan row 6:4
+ * (seam at track 7), so the upper pair's boundary sat 44px -- half a column --
+ * to the left of the lower pair's.
  *
- * The plan row splits 6:4 rather than 5:5: a price carries a symbol, an amount
- * and a cycle ("US$12.00 / 月付") while an expiry carries a date
- * ("2027-01-21"), and an even split truncated the price on every card.
+ * Both rows now break at track 6, the edge where 硬盘 ends and 上传 begins. The
+ * traffic pair stays equal at 5:5, and the plan pair is 5:5 as well; the price
+ * fits because it is allowed to take the width it needs rather than being
+ * clipped, and "US$12.00 / 月付" is 103px against a 218px half.
  */
 .card .total:nth-of-type(1) {
   grid-row: 3;
@@ -606,12 +607,12 @@ html:not([data-hairline]) .chart {
 
 .card .total:nth-of-type(3) {
   grid-row: 4;
-  grid-column: 1 / 7;
+  grid-column: 1 / 6;
 }
 
 .card .total:nth-of-type(4) {
   grid-row: 4;
-  grid-column: 7 / 11;
+  grid-column: 6 / 11;
 }
 
 .card .total .k {
