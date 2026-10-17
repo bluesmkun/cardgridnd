@@ -1,0 +1,129 @@
+{
+  "name": "格 Cardgrid",
+  "short": "cardgridnd",
+  "description": "极简卡片网格探针主题：一屏一格的服务器卡片，留白为骨、发丝为线",
+  "version": "1.0.0",
+  "author": "poooo",
+  "url": "https://github.com/bluesmkun/cardgridnd",
+  "config": [
+    {
+      "key": "notice",
+      "type": "text",
+      "label": "公告",
+      "default": "",
+      "help": "页面顶部一行公告；留空不显示"
+    },
+    {
+      "key": "show_summary",
+      "type": "boolean",
+      "label": "汇总栏",
+      "default": true,
+      "help": "顶部四格：节点数、本月流量、实时网速、费用"
+    },
+    {
+      "key": "show_groups",
+      "type": "boolean",
+      "label": "分组标签",
+      "default": true,
+      "help": "节点有分组时显示切换标签"
+    },
+    {
+      "key": "show_flags",
+      "type": "boolean",
+      "label": "地区代码",
+      "default": true,
+      "help": "在名称前显示两字母地区代码"
+    },
+    {
+      "key": "show_net",
+      "type": "boolean",
+      "label": "实时网速",
+      "default": true,
+      "help": "卡片上的上传与下载列"
+    },
+    {
+      "key": "show_traffic",
+      "type": "boolean",
+      "label": "累计流量",
+      "default": true,
+      "help": "卡片底部的总上传与总下载"
+    },
+    {
+      "key": "show_price",
+      "type": "boolean",
+      "label": "价格",
+      "default": true,
+      "help": "顶部汇总栏的费用格"
+    },
+    {
+      "key": "hairline",
+      "type": "boolean",
+      "label": "发丝描边",
+      "default": true,
+      "help": "用 1px 细线划分卡片；关掉改用极轻的阴影"
+    },
+    {
+      "key": "hover_lift",
+      "type": "boolean",
+      "label": "悬停浮起",
+      "default": true,
+      "help": "指针移到卡片上时上浮 1px"
+    },
+    {
+      "key": "currency",
+      "type": "select",
+      "label": "显示币种",
+      "default": "",
+      "help": "把价格换算成统一币种；留空按各节点原始币种显示（不联网）",
+      "options": [
+        {
+          "value": "",
+          "label": "原始币种"
+        },
+        {
+          "value": "CNY",
+          "label": "人民币 CNY"
+        },
+        {
+          "value": "USD",
+          "label": "美元 USD"
+        },
+        {
+          "value": "EUR",
+          "label": "欧元 EUR"
+        },
+        {
+          "value": "JPY",
+          "label": "日元 JPY"
+        },
+        {
+          "value": "HKD",
+          "label": "港币 HKD"
+        },
+        {
+          "value": "GBP",
+          "label": "英镑 GBP"
+        },
+        {
+          "value": "SGD",
+          "label": "新加坡元 SGD"
+        },
+        {
+          "value": "AUD",
+          "label": "澳元 AUD"
+        },
+        {
+          "value": "CAD",
+          "label": "加元 CAD"
+        }
+      ]
+    },
+    {
+      "key": "rate_url",
+      "type": "string",
+      "label": "汇率接口",
+      "default": "https://open.er-api.com/v6/latest/USD",
+      "help": "仅在选择了显示币种时请求；需返回 base/rates 或 base_code/conversion_rates"
+    }
+  ]
+}

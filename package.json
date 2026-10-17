@@ -1,0 +1,27 @@
+{
+  "name": "monitor-theme-cardgridnd",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build && node scripts/build-theme.mjs",
+    "typecheck": "tsc -b",
+    "preview": "vite preview",
+    "icons": "node scripts/icons.mjs",
+    "preview:shot": "node scripts/preview.mjs",
+    "pack": "node scripts/pack.mjs"
+  },
+  "dependencies": {
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "@vitejs/plugin-react": "^6.1.0",
+    "typescript": "~6.0.2",
+    "vite": "^8.2.2"
+  }
+}

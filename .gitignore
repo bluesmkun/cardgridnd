@@ -1,0 +1,21 @@
+# 依赖
+node_modules/
+
+# pnpm 安装时写下的内部清单，不是源码
+.modules.yaml
+
+# pnpm 的本地内容寻址存储：随安装位置而定，不进版本库
+.pnpm-store/
+
+# 构建产物：由构建脚本生成，不随源码提交。目录名来自 theme.json 的 short。
+cardgridnd/
+dist/
+
+# 打包产物：随 GitHub Release 分发，不进版本库
+theme.tar.gz
+theme.tar.gz.sha256
+
+# 编辑器与系统
+.DS_Store
+*.log
+.vite/

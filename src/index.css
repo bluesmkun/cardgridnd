@@ -1,0 +1,1421 @@
+/*
+ * 格 Cardgrid — a page of cards on white.
+ *
+ * The theme has one idea: every server is a card, cards sit in a grid, and
+ * nothing else is drawn. There are no panels behind panels and no shadows doing
+ * the work a line can do; a card is separated from the page by a 1px hairline,
+ * and from its neighbour by the gap of the grid. That is the whole vocabulary.
+ *
+ * Structure:
+ *   1. tokens      the palette, the corners, the measure and the two faces
+ *   2. skins       the data-attribute overrides the settings produce
+ *   3. base        document, focus, scrollbars
+ *   4. shell       masthead, notice, tabs
+ *   5. summary     the four tiles above the grid
+ *   6. grid        the cards themselves
+ *   7. detail      one node, full page
+ *   8. settings    the drawer
+ *   9. charts      SVG geometry, which has to be styled by class
+ */
+
+/* ── 1. tokens ─────────────────────────────────────────────────────────── */
+
+:root {
+  --paper: #ffffff;
+  /* The page behind the cards. Not pure white, so a white card on it has an
+     edge even before the hairline is drawn. */
+  --page: #fbfbfc;
+  --ink: #16181d;
+  --ink-dim: #5c6270;
+  --ink-faint: #8b909c;
+  --line: #e8eaee;
+  --line-strong: #d6dae1;
+
+  --ok: #15803d;
+  --warn: #b45309;
+  --bad: #b91c1c;
+
+  --accent: var(--ink);
+  /* One corner for everything: cards, panels, charts, capsules, buttons. The
+     theme used to offer a radius setting, which meant the card and the panel
+     inside it could disagree -- and the corner is the one thing a reader sees
+     before they read anything. */
+  --radius: 18px;
+  /* How much room the page leaves at the sides. The masthead, the summary, the
+     tabs and the grid all read this, so they line up on both edges at every
+     width instead of each carrying its own max-width. */
+  --measure: 1000px;
+  --pad: 16px;
+  --gap: 12px;
+
+  /* Two faces, fixed: the page is set in the system's own sans, and every figure
+     is set in a monospaced one so that columns of numbers line up digit for
+     digit. Both stacks are named explicitly rather than relying on `system-ui`,
+     because the CJK lines of a mixed label resolve through a different font on
+     each platform and the digits beside them would be a pixel taller. */
+  --ui: "Inter", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+  --data: "SF Mono", ui-monospace, Menlo, Consolas, "Liberation Mono", monospace;
+}
+
+/* ── 3. base ───────────────────────────────────────────────────────────── */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  background: var(--page);
+  color: var(--ink);
+  font-family: var(--ui);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+a {
+  color: inherit;
+}
+
+/* Keyboard focus only: a pointer press should not leave a ring behind. */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.num,
+.v,
+.val,
+.readout,
+.tick-text {
+  font-family: var(--data);
+  font-variant-numeric: tabular-nums;
+}
+
+.quiet {
+  color: var(--ink-faint);
+}
+
+/* ── 4. shell ──────────────────────────────────────────────────────────── */
+
+.masthead {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: var(--measure);
+  margin: 0 auto;
+  padding: 20px 24px 16px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  min-width: 0;
+}
+
+.brand .mark {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border-radius: calc(var(--radius) * 0.35);
+  background: var(--accent);
+  display: grid;
+  place-items: center;
+}
+
+.brand .mark img,
+.brand .mark svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.brand .name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.brand .sub {
+  color: var(--ink-faint);
+  font-weight: 400;
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.head-tools {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 11px;
+  border: 1px solid var(--line-strong);
+  border-radius: calc(var(--radius) * 0.55);
+  background: var(--paper);
+  color: var(--ink-dim);
+  font-size: 12.5px;
+  white-space: nowrap;
+  /* A button that happens to be an `<a>`: it navigates, so it should be a link,
+     but it is drawn as a button and the default underline is the one thing that
+     would give away that it is not one. */
+  text-decoration: none;
+  transition: border-color 0.14s, color 0.14s, background 0.14s;
+}
+
+.btn:hover {
+  color: var(--ink);
+  border-color: var(--ink-faint);
+}
+
+.btn[data-on="true"] {
+  color: var(--paper);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.notice {
+  max-width: var(--measure);
+  margin: 0 auto 14px;
+  padding: 9px 24px;
+  color: var(--ink-dim);
+  font-size: 13px;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  background: var(--paper);
+}
+
+.shell {
+  max-width: var(--measure);
+  margin: 0 auto;
+  padding: 0 24px 64px;
+}
+
+/* ── 5. summary ────────────────────────────────────────────────────────── */
+
+/* The four fleet figures.
+ *
+ * `grid-auto-rows: 1fr` keeps every tile the same height even though the network
+ * one carries four lines and the counts carry two: four boxes at four heights read
+ * as four unrelated figures, and on a phone -- where the grid is two by two -- it
+ * would leave the second row taller than the first. */
+.summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-auto-rows: 1fr;
+  gap: var(--gap);
+  margin-bottom: var(--gap);
+}
+
+.summary .stat {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: var(--pad);
+  min-width: 0;
+}
+
+html:not([data-hairline]) .summary .stat,
+html:not([data-hairline]) .card,
+html:not([data-hairline]) .plate,
+html:not([data-hairline]) .chart {
+  border-color: transparent;
+  box-shadow: 0 1px 2px rgba(22, 24, 29, 0.06), 0 0 0 1px rgba(22, 24, 29, 0.04);
+}
+
+.stat .k {
+  color: var(--ink);
+  font-size: 13.5px;
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+
+/* The figure, with its dot in front. The dot is what distinguishes the three
+   counts at a glance -- total, up, down -- and it sits in the line box rather
+   than in a column of its own, so a two-digit figure does not shuffle the tiles
+   that sit above it. */
+.stat .v {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 23px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  line-height: 1.15;
+}
+
+.stat .v .bulb {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+
+.stat .v .bulb[data-tone="count"] { background: #2563eb; }
+.stat .v .bulb[data-tone="ok"] { background: var(--ok); }
+.stat .v .bulb[data-tone="off"] { background: var(--bad); }
+
+/* The two directions, side by side on their own line. */
+.stat .v.pair {
+  gap: 14px;
+  font-size: 15px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The rates under the totals: the same shape, quieter, because the totals are
+   the headline and the rates are the present tense. */
+.stat .v.pair.speeds {
+  margin-top: 7px;
+  font-size: 13.5px;
+  color: var(--ink-dim);
+}
+
+/* The line under a figure: what the headline is a part of.
+ *
+ * It keeps its height when empty. The four tiles sit in one row and
+ * `grid-auto-rows: 1fr` makes them all as tall as the tallest, so a tile with no
+ * detail would centre its label and figure in a taller box than its neighbours
+ * and the four labels would stop lining up. */
+.stat .sub {
+  margin-top: 6px;
+  min-height: 15px;
+  font-size: 11.5px;
+  line-height: 15px;
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── 6. grid ───────────────────────────────────────────────────────────── */
+
+/* The column count comes from the settings as a custom property, and the
+   breakpoints below only ever lower it: an operator asking for 6 columns on a
+   laptop should get fewer, not a scrollbar. */
+/* Two cards per row.
+ *
+ * A card holds a name and eight figures, which is more than a third of the page
+ * can show without truncating every one of them and less than a full row needs
+ * -- a full-width card for eight figures leaves most of the row empty. Two
+ * columns is where the figures fit and the whitespace does not.
+ *
+ * Short: the card is two lines, not a stack. It is read by scanning a column of
+ * them, so the less of the screen each one takes the more of them answer the
+ * question at once. */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+@media (max-width: 980px) {
+  .grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* The group strip.
+ *
+ * A tray holding a row of names, with the selected one raised onto paper. The
+ * tray is what makes them read as one control with a current value rather than as
+ * a line of links that happen to sit next to each other. It scrolls sideways when
+ * a site has more groups than the measure holds -- groups are up to thirteen
+ * characters each and there can be dozens, and wrapping them would push the first
+ * card off the screen. */
+.tabs {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px;
+  margin-bottom: var(--gap);
+  width: fit-content;
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+  background: color-mix(in srgb, var(--ink) 4.5%, transparent);
+  border-radius: calc(var(--radius) * 0.7);
+}
+
+.tabs::-webkit-scrollbar { display: none; }
+
+.tab {
+  flex: none;
+  height: 28px;
+  padding: 0 12px;
+  border-radius: calc(var(--radius) * 0.55);
+  color: var(--ink-dim);
+  font-size: 12.5px;
+  white-space: nowrap;
+  transition: color 0.14s, background 0.14s, box-shadow 0.14s;
+}
+
+.tab:hover {
+  color: var(--ink);
+}
+
+.tab[data-on="true"] {
+  color: var(--ink);
+  font-weight: 600;
+  background: var(--paper);
+  box-shadow: 0 1px 2px rgba(22, 24, 29, 0.07);
+}
+
+.card {
+  /* Three stacked regions: the identity, the measured columns, the totals.
+   *
+   * The identity is centred over the figures rather than sitting at their left,
+   * because it is the card's title: everything under it describes this machine,
+   * and a title in the corner reads as a table's first cell instead. */
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  row-gap: 8px;
+  width: 100%;
+  text-align: left;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 14px 16px 12px;
+  min-width: 0;
+  transition: border-color 0.16s, transform 0.16s, box-shadow 0.16s;
+}
+
+/* Identity: centred, and on its own line above the figures. */
+.card .who {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.card .who .name {
+  font-size: 13.5px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.card .who .cc {
+  flex: none;
+  color: var(--ink-faint);
+  font-family: var(--data);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  padding: 1px 4px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+}
+
+/* The metric columns.
+ *
+ * Sized from the card, not from the viewport. The card is half of a grid with a
+ * fixed measure, so no media query can know how wide it is: at a 1100px measure
+ * a card is 34em wide on a laptop and on a desktop alike.
+ *
+ * `auto-fill` with a floor, so the number of tracks follows the space the card
+ * has. `auto-fill` and not `auto-fit`: `auto-fit` collapses the tracks that no
+ * cell landed in and stretches the rest, which makes the last cell in a row span
+ * the whole width. `auto-fill` keeps them, so the columns stay even and a figure
+ * sits under the figure above it.
+ *
+ * The floor is `--cell`, one measured column: a percentage needs room for
+ * "100.0%" and a rate needs room for "664.2 KB/s", and the widest cell claims
+ * extra tracks rather than wrapping onto a line the neighbours do not have. */
+.card .cols {
+  display: grid;
+  /* Five columns, equal, always: CPU, 内存, 存储, 上传, 下载. The count is fixed
+     rather than `auto-fill` because the card holds exactly these five, and a
+     grid that decides its own column count turns five cells into a two-row
+     block the moment the card narrows by a few pixels. */
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  align-items: start;
+  gap: 4px 10px;
+  min-width: 0;
+}
+
+/* One measured column: label, figure, and a bar for the three that are a share
+   of a total. */
+/* One measured column, centred.
+ *
+ * The label, the figure and the bar are all centred on the column's own axis
+ * rather than sharing a left edge. Five equal tracks left-align inside
+ * themselves, so a short figure like "0.5%" leaves a gap at its right that the
+ * neighbouring column's "84.30%" does not -- and a row of five readings each
+ * starting at its own track's edge reads as five ragged columns. Centred, each
+ * label sits over the middle of its own number, which is what makes the row scan
+ * as a table.
+ *
+ * `text-overflow` still works on a centred box: the ellipsis appears at the
+ * right-hand end of the clipped line. It is only reached when a rate runs past
+ * its track on a very narrow card. */
+.col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+  text-align: center;
+}
+
+.col .k {
+  max-width: 100%;
+  color: var(--ink-faint);
+  font-size: 11.5px;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.col .v {
+  max-width: 100%;
+  color: var(--ink);
+  font-family: var(--data);
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* A rate carries a unit and needs the proportional face: "13.45K/s" set solid in
+   a mono face reads as a single long token. */
+.col .v[data-mono="false"] {
+  font-family: var(--ui);
+  font-size: 12.5px;
+  font-weight: 650;
+  letter-spacing: -0.005em;
+}
+
+/* The bar under a measured column: a share, drawn thin. */
+/* The bar is the one thing in the column that is not centred: it spans the whole
+   track, because its length is the reading. */
+.col .track {
+  display: block;
+  width: 100%;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.col .track[data-empty="true"] {
+  background: color-mix(in srgb, var(--line) 60%, transparent);
+}
+
+.col .fill {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--ok);
+  transition: width 0.4s ease;
+}
+
+.col .fill[data-tone="warn"] { background: var(--warn); }
+.col .fill[data-tone="bad"] { background: var(--bad); }
+
+/* ── totals ─────────────────────────────────────────────────────────────── */
+
+/* 总上传 and 总下载, side by side under the measured columns.
+ *
+ * They are one figure in two directions -- the traffic this machine has moved
+ * since it was installed -- so they share a row as two equal halves rather than
+ * taking a column apiece, which would make each look like another reading of the
+ * same kind as CPU. */
+.card .totals {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  min-width: 0;
+}
+
+.card .total {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 5px;
+  min-width: 0;
+  padding: 3px 8px;
+  border: 1px solid var(--line);
+  border-radius: calc(var(--radius) * 0.5);
+  background: var(--page);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.card .total .k {
+  color: var(--ink-dim);
+  font-size: 11.5px;
+  flex: none;
+}
+
+.card .total .v {
+  color: var(--ink);
+  font-family: var(--data);
+  font-size: 11.5px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Narrow screens: the card keeps its three stacked regions and only tightens.
+ *
+ * Never `flex-wrap: wrap` here. The card is a column flex container, and a column
+ * container wraps by *height*: it fills one column top to bottom and then starts a
+ * second column to the right. That put the metrics and the totals in a second
+ * column beside the identity, 300px outside the card, and the page scrolled
+ * sideways on every phone. */
+@media (max-width: 900px) {
+  .card {
+    row-gap: 9px;
+    padding: 13px 14px 11px;
+  }
+  .card .cols {
+    gap: 4px 8px;
+  }
+}
+
+@media (max-width: 620px) {
+  .shell {
+    padding: 0 16px 48px;
+  }
+  /* The five columns keep their one row on a phone too: they are already short
+     enough for a 330px card at this size, and two rows of two would make every
+     card taller than the screen is wide. */
+  .card .cols {
+    gap: 4px 6px;
+  }
+  .col .k,
+  .col .v,
+  .col .v[data-mono="false"] {
+    font-size: 10.5px;
+  }
+  .card .total .k,
+  .card .total .v {
+    font-size: 10.5px;
+  }
+  .card .total {
+    padding: 3px 6px;
+  }
+  /* The summary becomes two by two. Four full-width tiles on a phone is a screen
+     of nothing but summary, and the figures are short. */
+  .summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .summary .stat {
+    padding: 12px 13px;
+  }
+  .stat .k {
+    font-size: 11.5px;
+    margin-bottom: 4px;
+  }
+  .stat .v {
+    font-size: 17px;
+  }
+  .stat .sub {
+    font-size: 10.5px;
+    margin-top: 4px;
+  }
+  /* The masthead's subtitle is the first thing to go: it repeats the site name. */
+  .brand .sub {
+    display: none;
+  }
+  .tabs {
+    gap: 2px;
+  }
+  .tab {
+    padding: 5px 9px;
+    font-size: 12px;
+  }
+}
+
+
+/* The carrier figures share one column: three numbers, set apart by colour and
+   a little air rather than by three labels. */
+.col .v .cell {
+  font-variant-numeric: tabular-nums;
+}
+
+.col .v .cell + .cell::before {
+  content: "·";
+  color: var(--line-strong);
+  margin: 0 3px;
+}
+
+.card:hover {
+  border-color: var(--line-strong);
+}
+
+/* Opt-in, because a card that moves under the pointer is distracting when the
+   page is being read rather than scanned. */
+html[data-lift] .card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 3px 10px rgba(22, 24, 29, 0.07);
+}
+
+/* An offline card keeps its place and its shape: the grid must not reflow
+   because a machine went down, or the page becomes unreadable at the moment it
+   matters most. */
+.card[data-offline] {
+  background: color-mix(in srgb, var(--page) 60%, var(--paper));
+}
+
+.card[data-offline] .who .name,
+.card[data-offline] .col .v {
+  color: var(--ink-faint);
+}
+
+.dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ink-faint);
+}
+
+.dot[data-state="ok"] { background: var(--ok); }
+.dot[data-state="wait"] { background: var(--warn); }
+.dot[data-state="off"] { background: var(--line-strong); }
+.dot[data-state="bad"] { background: var(--bad); }
+
+/* The three meters. Each is a label, a bar, a figure -- the card's densest
+   information in its least ink. */
+.meters {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-top: 2px;
+}
+
+.meter {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  font-size: 11.5px;
+}
+
+.meter .label {
+  color: var(--ink-faint);
+}
+
+.meter .track {
+  height: 3px;
+  border-radius: 2px;
+  background: var(--line);
+  overflow: hidden;
+  min-width: 0;
+}
+
+.meter .fill {
+  height: 100%;
+  border-radius: 2px;
+  background: var(--accent);
+  transition: width 0.4s ease;
+}
+
+.meter .fill[data-tone="warn"] { background: var(--warn); }
+.meter .fill[data-tone="bad"] { background: var(--bad); }
+
+.meter .val {
+  color: var(--ink-dim);
+  white-space: nowrap;
+  font-size: 11px;
+}
+
+.meter[data-empty] .val {
+  color: var(--ink-faint);
+}
+
+.remark {
+  color: var(--ink-dim);
+  font-size: 11.5px;
+  /* A whole-pixel line box: a fractional one leaves the cards with a remark a
+     pixel taller than the ones without, which shows up as a ragged row. */
+  line-height: 17px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+  overflow-wrap: anywhere;
+  /* One line, always. A remark that wraps would make this card taller than the
+     one beside it purely because the operator wrote a longer sentence. */
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Reserved even when there is no remark: a card that is one wrapped line
+   taller than the one beside it drags its whole row out of line. */
+.remark[data-empty="true"] {
+  /* The padding and the line box, without the text: a card with no remark is
+     exactly as tall as one with it. */
+  height: 26px;
+  border-top-color: transparent;
+}
+
+.remark p {
+  margin: 0;
+}
+
+.remark a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.remark code {
+  font-family: var(--data);
+  font-size: 10.5px;
+  background: color-mix(in srgb, var(--ink) 5%, transparent);
+  padding: 1px 3px;
+  border-radius: 3px;
+}
+
+.empty,
+.banner {
+  padding: 44px 24px;
+  text-align: center;
+  color: var(--ink-faint);
+  font-size: 13px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper);
+}
+
+.banner[data-tone="bad"] {
+  color: var(--bad);
+  border-color: color-mix(in srgb, var(--bad) 25%, var(--line));
+}
+
+.skeleton {
+  height: 172px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: linear-gradient(90deg, var(--paper) 0%, var(--page) 50%, var(--paper) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+.skeleton.tall {
+  height: 280px;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton { animation: none; }
+  .meter .fill { transition: none; }
+  .card,
+  .card:hover { transition: none; transform: none; }
+}
+
+/* ── 7. detail ─────────────────────────────────────────────────────────── */
+
+.detail-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+  min-width: 0;
+}
+
+.back {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 9px 0 7px;
+  border: 1px solid var(--line-strong);
+  border-radius: calc(var(--radius) * 0.55);
+  color: var(--ink-dim);
+  font-size: 12.5px;
+  background: var(--paper);
+}
+
+.back:hover {
+  color: var(--ink);
+  border-color: var(--ink-faint);
+}
+
+.detail-head .name {
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.detail-head .cc {
+  color: var(--ink-faint);
+  font-family: var(--data);
+  font-size: 11px;
+  padding: 1px 5px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+}
+
+.detail-head .lamp {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--ink-dim);
+  font-size: 12px;
+}
+
+.specs {
+  display: grid;
+  /* A fixed count, not `auto-fit`.
+   *
+   * `auto-fit` collapses the empty tracks of an incomplete last row and then
+   * stretches the items that are there to fill the width, so ten items in three
+   * columns left the tenth cell spanning all three -- a label and a dash sitting
+   * in a band the width of the panel. The count is fixed so the last row keeps
+   * the same cell width as the rows above it and simply ends short. */
+  grid-template-columns: repeat(var(--spec-cols, 6), minmax(0, 1fr));
+  gap: 1px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-bottom: var(--gap);
+}
+
+.spec {
+  background: var(--paper);
+  padding: 10px 13px;
+  min-width: 0;
+  /* The gridline, drawn by the cell rather than revealed by the container: an
+     incomplete last row then leaves white where there is no cell, instead of a
+     band of the line colour standing in for cells that do not exist. */
+  box-shadow: 0 0 0 1px var(--line);
+}
+
+.spec .k {
+  color: var(--ink-faint);
+  font-size: 11px;
+  margin-bottom: 2px;
+}
+
+.spec .v {
+  color: var(--ink);
+  font-size: 12.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 1180px) {
+  .specs { --spec-cols: 5; }
+}
+
+@media (max-width: 900px) {
+  .specs { --spec-cols: 3; }
+}
+
+@media (max-width: 620px) {
+  .specs { --spec-cols: 2; }
+}
+
+/* The basic-information panel: framed like a chart, because it is one block in a
+   stack of them and a bare heading over a table would read as a page section. */
+.info {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 13px 14px 6px;
+  margin-bottom: var(--gap);
+  min-width: 0;
+}
+
+.info .chart-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+/* The panel head: a title, a quiet note, and this panel's own switches at the
+   right-hand end. `align-items: baseline` keeps the title and the note on one
+   line of type; the switches are buttons, so they take `baseline` too rather
+   than sitting a few pixels low. */
+.chart .chart-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.chart .chart-tools {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+
+/* A switch small enough to live inside a panel head.
+ *
+ * Drawn as a switch and not as a button: `data-on` fills it with the accent and
+ * leaves the label on paper, which is the same language the group strip uses, so
+ * "this is on" reads the same in both places. It is inset from the panel's top
+ * edge by the head's own line box, which is why it is shorter than `.btn`. */
+.chip {
+  height: 22px;
+  padding: 0 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--ink-dim);
+  font-size: 11.5px;
+  font-weight: 550;
+  line-height: 1;
+  white-space: nowrap;
+  transition: background 0.14s, color 0.14s, border-color 0.14s;
+}
+
+.chip:hover {
+  border-color: var(--line-strong);
+  color: var(--ink);
+}
+
+.chip[data-on="true"] {
+  color: var(--paper);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.plate {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  margin-bottom: var(--gap);
+  font-size: 11.5px;
+}
+
+.plate .group {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.plate .k {
+  color: var(--ink-faint);
+}
+
+.plate .v {
+  color: var(--ink-dim);
+}
+
+.tabs.bar {
+  margin-bottom: var(--gap);
+}
+
+.tabs.bar .spacer {
+  margin-left: auto;
+}
+
+.charts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--gap);
+}
+
+@media (max-width: 820px) {
+  .charts { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* The latency panel runs the full width: three probes over a long window want
+   the horizontal room, and it is the only chart here with more than two lines. */
+.chart.wide {
+  grid-column: 1 / -1;
+}
+
+/* The caption under a chart: the peak, which is stated rather than only drawn. */
+.chart .chart-foot {
+  margin-top: 2px;
+  padding-top: 6px;
+  border-top: 1px solid var(--line);
+  color: var(--ink-faint);
+  font-size: 11px;
+}
+
+.chart .chart-empty {
+  height: 150px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-faint);
+  font-size: 12px;
+}
+
+.chart {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 13px 14px 8px;
+  min-width: 0;
+}
+
+.chart .chart-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 2px;
+  min-width: 0;
+}
+
+.chart .chart-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.chart .chart-note {
+  margin-left: auto;
+  color: var(--ink-faint);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.chart-holder {
+  position: relative;
+  width: 100%;
+}
+
+.chart svg {
+  display: block;
+  width: 100%;
+  /* Clipped, not visible: the right-hand tick label and the last data point are
+     drawn to the pad's edge, and letting them hang out put a chart wider than the
+     panel it lives in. */
+  overflow: hidden;
+}
+
+.grid-line {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+.axis-line {
+  stroke: var(--line-strong);
+  stroke-width: 1;
+}
+
+.tick-text {
+  fill: var(--ink-faint);
+  font-size: 9.5px;
+  font-family: var(--data);
+}
+
+.crosshair {
+  stroke: var(--ink-faint);
+  stroke-width: 1;
+  stroke-dasharray: 2 2;
+}
+
+.readout {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  height: 20px;
+  font-size: 11px;
+  color: var(--ink-dim);
+}
+
+.readout .stamp {
+  color: var(--ink-faint);
+}
+
+.readout .swatch {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.readout .swatch i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.legend {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex-wrap: wrap;
+  padding-top: 6px;
+}
+
+.legend button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 21px;
+  padding: 0 7px;
+  border-radius: 4px;
+  color: var(--ink-dim);
+  font-size: 11px;
+  transition: background 0.14s, opacity 0.14s;
+}
+
+.legend button:hover {
+  background: color-mix(in srgb, var(--ink) 5%, transparent);
+}
+
+.legend button[data-off="true"] {
+  opacity: 0.4;
+}
+
+.legend i.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex: none;
+}
+
+/* ── 8. settings ───────────────────────────────────────────────────────── */
+
+.drawer {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  justify-content: flex-end;
+  background: color-mix(in srgb, var(--ink) 26%, transparent);
+}
+
+.sheet {
+  width: min(430px, 100%);
+  height: 100%;
+  background: var(--paper);
+  border-left: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.sheet-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 18px 13px;
+  border-bottom: 1px solid var(--line);
+}
+
+.sheet-head .title {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.sheet-head .close {
+  margin-left: auto;
+  color: var(--ink-faint);
+  width: 26px;
+  height: 26px;
+  border-radius: 5px;
+  display: grid;
+  place-items: center;
+}
+
+.sheet-head .close:hover {
+  color: var(--ink);
+  background: color-mix(in srgb, var(--ink) 5%, transparent);
+}
+
+.sheet-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 18px 18px;
+}
+
+.group {
+  margin: 18px 0 7px;
+  color: var(--ink);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+.group:first-child {
+  margin-top: 12px;
+}
+
+.field {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+  min-width: 0;
+}
+
+.field .txt {
+  flex: 1;
+  min-width: 0;
+}
+
+.field .txt .label {
+  font-size: 12.5px;
+  color: var(--ink);
+}
+
+.field .txt .hint {
+  margin-top: 2px;
+  color: var(--ink-faint);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.field input[type="text"],
+.field input[type="number"],
+.field select,
+.field textarea {
+  width: 100%;
+  margin-top: 5px;
+  padding: 5px 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: 5px;
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  font-size: 12.5px;
+}
+
+.field textarea {
+  min-height: 62px;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.field select {
+  cursor: pointer;
+}
+
+.field input:focus,
+.field select:focus,
+.field textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.switch {
+  position: relative;
+  flex: none;
+  width: 34px;
+  height: 20px;
+  margin-top: 1px;
+}
+
+.switch input {
+  position: absolute;
+  opacity: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  cursor: pointer;
+}
+
+.switch .box {
+  position: absolute;
+  inset: 0;
+  border-radius: 10px;
+  background: var(--line-strong);
+  transition: background 0.16s;
+  pointer-events: none;
+}
+
+.switch .box::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--paper);
+  transition: transform 0.16s;
+}
+
+.switch input:checked + .box {
+  background: var(--accent);
+}
+
+.switch input:checked + .box::after {
+  transform: translateX(14px);
+}
+
+.switch input:focus-visible + .box {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.drawer-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 13px 18px;
+  border-top: 1px solid var(--line);
+}
+
+.drawer-actions .grow {
+  flex: 1;
+}
+
+/* ── 9. narrow ─────────────────────────────────────────────────────────── */
+
+/* The masthead and its notice, tightened for a phone. The page's own layout
+   breakpoints are with the sections they belong to, earlier in the file. */
+@media (max-width: 620px) {
+  .masthead { padding: 16px 16px 12px; }
+  .notice { padding: 9px 16px; }
+}
