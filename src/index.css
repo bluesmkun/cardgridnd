@@ -582,31 +582,28 @@ html:not([data-hairline]) .chart {
 
 /* The bars and the plan capsules share the same five-track cells, so a capsule
    sits under a bar and the pair reads as one table of four figures. */
-/* The band is two equal halves, and so is the plan row below it.
+/* The band and the plan row, placed on the card's ten tracks.
  *
- * An even split cannot land on a column edge -- ten tracks divide into five
- * columns of two, so half the card is two and a half columns. The earlier
- * layout gave 2:3 to force the seam onto a column edge, which made the two
- * traffic figures visibly unequal: 总上传 was a third narrower than 总下载, and
- * the pair reads as one figure in two directions, so any difference in their
- * width reads as a difference in the numbers. Equal halves are what the eye
- * expects; the seam sitting mid-column is invisible next to that.
+ * The two traffic bars are five tracks each: ten tracks divide by two, so they
+ * are equal AND span the card edge to edge. Anterior versions placed them at
+ * 1/4 and 4/7 -- track numbers written for a six-track grid -- so both bars
+ * together covered only the left half of the card and the right half of the
+ * row was empty.
+ *
+ * The plan row splits 6:4 rather than 5:5: a price carries a symbol, an amount
+ * and a cycle ("US$12.00 / 月付") while an expiry carries a date
+ * ("2027-01-21"), and an even split truncated the price on every card.
  */
 .card .total:nth-of-type(1) {
   grid-row: 3;
-  grid-column: 1 / 4;
+  grid-column: 1 / 6;
 }
 
 .card .total:nth-of-type(2) {
   grid-row: 3;
-  grid-column: 4 / 7;
+  grid-column: 6 / 11;
 }
 
-/* The plan row splits 3:2 rather than in half: a price carries a symbol, an
-   amount and a cycle ("US$12.00 / 月付"), while an expiry carries a date
-   ("2027-01-21"). Equal halves truncated the price on every card. The two
-   traffic bars above stay equal because those two figures really are the same
-   shape. */
 .card .total:nth-of-type(3) {
   grid-row: 4;
   grid-column: 1 / 7;
