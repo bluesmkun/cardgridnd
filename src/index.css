@@ -427,7 +427,11 @@ html:not([data-hairline]) .chart {
    * because it is the card's title: everything under it describes this machine,
    * and a title in the corner reads as a table's first cell instead. */
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  /* Ten tracks: five measured columns of two each, and the two traffic bars and
+     two plan capsules of five each. Ten divides by 5 and by 2, so the band is
+     two exact halves while the columns stay equal -- the one arrangement where
+     neither row is skewed to line up with the other. */
+  grid-template-columns: repeat(10, minmax(0, 1fr));
   row-gap: 8px;
   width: 100%;
   text-align: left;
@@ -510,11 +514,11 @@ html:not([data-hairline]) .chart {
   grid-row: 2;
 }
 
-.col:nth-child(1) { grid-column: 1; }
-.col:nth-child(2) { grid-column: 2; }
-.col:nth-child(3) { grid-column: 3; }
-.col:nth-child(4) { grid-column: 4; }
-.col:nth-child(5) { grid-column: 5; }
+.col:nth-child(1) { grid-column: 1 / 3; }
+.col:nth-child(2) { grid-column: 3 / 5; }
+.col:nth-child(3) { grid-column: 5 / 7; }
+.col:nth-child(4) { grid-column: 7 / 9; }
+.col:nth-child(5) { grid-column: 9 / 11; }
 
 .col .k {
   max-width: 100%;
@@ -578,34 +582,39 @@ html:not([data-hairline]) .chart {
 
 /* The bars and the plan capsules share the same five-track cells, so a capsule
    sits under a bar and the pair reads as one table of four figures. */
-/* The two traffic bars split 2:3 on a column edge, and the plan capsules repeat
- * that split below them.
+/* The band is two equal halves, and so is the plan row below it.
  *
- * Five columns divide into two halves only in the ratio 2:3, so that is the split
- * taken: 总上传 spans CPU and 内存, 总下载 spans 硬盘, 上传 and 下载, and the
- * boundary between them is the edge of a column rather than the middle of one.
- * The earlier layout gave each bar half the card but put the seam at 2.5 columns,
- * a line that exists nowhere in the row above and read as a misalignment. At 40%
- * of the card the narrower bar still has room for "总上传 10.0 TB".
+ * An even split cannot land on a column edge -- ten tracks divide into five
+ * columns of two, so half the card is two and a half columns. The earlier
+ * layout gave 2:3 to force the seam onto a column edge, which made the two
+ * traffic figures visibly unequal: 总上传 was a third narrower than 总下载, and
+ * the pair reads as one figure in two directions, so any difference in their
+ * width reads as a difference in the numbers. Equal halves are what the eye
+ * expects; the seam sitting mid-column is invisible next to that.
  */
 .card .total:nth-of-type(1) {
   grid-row: 3;
-  grid-column: 1 / 3;
+  grid-column: 1 / 4;
 }
 
 .card .total:nth-of-type(2) {
   grid-row: 3;
-  grid-column: 3 / 6;
+  grid-column: 4 / 7;
 }
 
+/* The plan row splits 3:2 rather than in half: a price carries a symbol, an
+   amount and a cycle ("US$12.00 / 月付"), while an expiry carries a date
+   ("2027-01-21"). Equal halves truncated the price on every card. The two
+   traffic bars above stay equal because those two figures really are the same
+   shape. */
 .card .total:nth-of-type(3) {
   grid-row: 4;
-  grid-column: 1 / 3;
+  grid-column: 1 / 7;
 }
 
 .card .total:nth-of-type(4) {
   grid-row: 4;
-  grid-column: 3 / 6;
+  grid-column: 7 / 11;
 }
 
 .card .total .k {
