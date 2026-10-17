@@ -297,14 +297,27 @@ const MDHHMM = new Intl.DateTimeFormat("zh-CN", { month: "2-digit", day: "2-digi
 const MMDD = new Intl.DateTimeFormat("zh-CN", { month: "2-digit", day: "2-digit" })
 
 /**
- * Axis ticks for a window `hours` wide. Beyond a day a bare "14:00" recurs each
- * midnight and the axis no longer indicates which day it refers to.
+ * A clock label for a window `hours` wide, taking epoch SECONDS -- the unit of a
+ * bucket's `ts` everywhere in this theme.
+ *
+ * The formatters are `Intl.DateTimeFormat`, which takes milliseconds. Handing one
+ * a second count does not throw: it reads 1,792,201,044 as a millisecond offset
+ * from 1970, which is 21 January 1970, so every readout printed "01/22 01:44" --
+ * a plausible-looking time from a fixed past. Converting here, in the one place
+ * that formats a timestamp, keeps the seconds-vs-milliseconds mistake from being
+ * available to make.
+ *
+ * Beyond a day a bare "14:00" recurs each midnight and stops saying which day.
  */
-export function clockFor(hours: number): (ms: number) => string {
-  return hours <= 24 ? HHMM.format : MDHHMM.format
+export function clockFor(hours: number): (sec: number) => string {
+  const fmt = hours <= 24 ? HHMM : MDHHMM
+  return (sec) => fmt.format(sec * 1000)
 }
 
-/** The date alone once every tick is a local midnight, `clockFor` otherwise. */
+/**
+ * The date alone once every tick is a local midnight, `clockFor` otherwise.
+ * Ticks are epoch MILLISECONDS, as `timeTicks` returns them.
+ */
 export function tickClock(ticks: number[], hours: number): (ms: number) => string {
   const midnight = (t: number) => new Date(t).getHours() === 0 && new Date(t).getMinutes() === 0
   return ticks.length > 0 && ticks.every(midnight) ? MMDD.format : clockFor(hours)

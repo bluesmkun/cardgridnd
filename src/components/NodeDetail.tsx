@@ -475,8 +475,9 @@ export function NodeDetail({ id, onBack }: { id: number; onBack: () => void }) {
             <Chart
               rows={plotRows}
               series={[charts.cpu]}
+              // The format supplies the sign, so no unit: the readout appends
+              // `unit` after `format`, and both gave "37%%".
               format={(n) => `${n.toFixed(0)}%`}
-              unit="%"
               hours={active}
               top={100}
               ticks={quarters(100)}
