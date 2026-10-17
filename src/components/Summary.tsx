@@ -190,34 +190,34 @@ function Cost({ nodes }: { nodes: Node[] }) {
   if (bills.length === 0) {
     const free = nodes.length > 0 && nodes.every((n) => monthlyCost(n) === 0)
     return (
-      <Tile label="费用">
+      <Tile label="剩余价值">
         <div className="v" data-quiet="true">
           {free ? "免费" : "—"}
         </div>
         <div className="sub">
-          {free ? (currency ? "全部免费" : "全部免费") : "未标价"}
+          {free ? "全部免费" : "未标价"}
         </div>
       </Tile>
     )
   }
 
-  // One currency: the figure the tile is about. Several, and no conversion
-  // asked for: they are shown as separate figures rather than joined by a slash,
-  // because "US$51.00 / ¥15.00" reads as one amount written two ways instead of
-  // two amounts that nothing has added up.
-  const sorted = currency ? bills : [...bills].sort((a, b) => b[1].per - a[1].per)
+  // Residual value, not the monthly bill: "what is this fleet still worth" is
+  // the question a total over machines answers, and it is the only figure that
+  // already accounts for how far each plan has run. The monthly rate is shown
+  // underneath, because it is what the residual is being spent down towards.
+  const sorted = currency ? bills : [...bills].sort((a, b) => b[1].left - a[1].left)
   const [code, at] = sorted[0]
   const rest = sorted.length - 1
 
   const sub = currency
-    ? `剩余价值 ${money(at.left, currency)}`
+    ? `每月 ${money(at.per, currency)}`
     : rest > 0
       ? `${rest} 种币种未折算`
-      : `剩余价值 ${money(at.left, code)}`
+      : `每月 ${money(at.per, code)}`
 
   return (
-    <Tile label="费用">
-      <div className="v">{money(at.per, code)}</div>
+    <Tile label="剩余价值">
+      <div className="v">{money(at.left, code)}</div>
       <div className="sub">{sub}</div>
     </Tile>
   )
