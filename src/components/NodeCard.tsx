@@ -1,5 +1,5 @@
 import { useCardStyle } from "@/lib/style"
-import { ago, bytes, percent, rate } from "@/lib/format"
+import { FOREVER, ago, bytes, cycle, money, percent, rate } from "@/lib/format"
 import type { Node } from "@/lib/api"
 
 /**
@@ -36,33 +36,26 @@ function quiet(node: Node): string {
   return `${ago(seen)}离线`
 }
 
-/** The bar's colour, from the share of the thing it is measuring. */
-function heat(share: number | null): "warn" | "bad" | undefined {
-  if (share === null) return undefined
-  if (share >= 90) return "bad"
-  if (share >= 70) return "warn"
-  return undefined
-}
-
 /**
- * One measured column: a label, a figure, and -- for the three that are a share
- * of a total -- a bar under them.
+ * One measured column: a label and a figure.
  *
- * The bar is passed as `null` when the row exists but the node has not reported:
- * that draws the empty track, so a node with no data keeps the same height as its
- * neighbours. `undefined` means the column has no bar at all.
+ * There is no bar under them. The bar was a share of a total drawn five times
+ * across the width of the card, and it forced the row into a ten-track grid that
+ * the band beneath could not divide evenly -- five columns and two bars share no
+ * common boundary, so either the bars lost their seam or the figures got
+ * truncated. The figures are the content; a 3px strip repeating "42%" as a
+ * length says nothing the digits did not, and removing it lets the row and the
+ * band above use one grid each.
+ *
+ * `mono` is off for the two rates, whose unit already sets their width.
  */
 function Col({
   label,
   children,
-  bar,
-  tone,
   mono = true,
 }: {
   label: string
   children: React.ReactNode
-  bar?: number | null
-  tone?: "warn" | "bad"
   mono?: boolean
 }) {
   return (
@@ -71,33 +64,37 @@ function Col({
       <span className="v" data-mono={mono ? undefined : "false"}>
         {children}
       </span>
-      {bar !== undefined && (
-        <span className="track" data-empty={bar === null ? "true" : undefined}>
-          {bar !== null && (
-            <span
-              className="fill"
-              data-tone={tone}
-              style={{ width: `${Math.max(0, Math.min(100, bar))}%` }}
-            />
-          )}
-        </span>
-      )}
     </div>
   )
 }
 
 /**
- * The two cumulative-traffic bars: 总上传 and 总下载 side by side under the
- * measured columns.
+ * The band under the columns: the two cumulative-traffic bars, and the plan
+ * under them.
  *
- * They share the row rather than each taking a column, because they are the two
- * halves of one figure -- the traffic this machine has moved since it was
- * installed -- and a column apiece would make each look like a separate reading
- * of the same kind as CPU.
+ * The whole card body is one grid of ten tracks: each measured column spans two
+ * and each bar spans five, so the bars fall on the same boundaries as the
+ * columns above them. As two independent five- and two-column grids their
+ * boundaries land at unrelated places and the bars read as a different table.
+ *
+ * The plan capsules follow the same rule, price over five tracks, expiry over
+ * the other five.
  */
-function Totals({ tx, rx }: { tx: number | null; rx: number | null }) {
+function Band({
+  tx,
+  rx,
+  price,
+  expire,
+  renew,
+}: {
+  tx: number | null
+  rx: number | null
+  price: string
+  expire: string
+  renew?: "warn" | "bad"
+}) {
   return (
-    <div className="totals">
+    <>
       <span className="total">
         <span className="k">总上传</span>
         <span className="v">{tx === null ? "—" : bytes(tx)}</span>
@@ -106,7 +103,15 @@ function Totals({ tx, rx }: { tx: number | null; rx: number | null }) {
         <span className="k">总下载</span>
         <span className="v">{rx === null ? "—" : bytes(rx)}</span>
       </span>
-    </div>
+      <span className="total plan" data-empty={price === "—" ? "true" : undefined}>
+        <span className="k">费用</span>
+        <span className="v">{price}</span>
+      </span>
+      <span className="total plan" data-tone={renew} data-empty={expire === "—" ? "true" : undefined}>
+        <span className="k">到期</span>
+        <span className="v">{expire}</span>
+      </span>
+    </>
   )
 }
 
@@ -116,9 +121,25 @@ export function NodeCard({ node, onOpen }: { node: Node; onOpen: (id: number) =>
   const state = !node.online ? "off" : node.broken ? "bad" : m ? "ok" : "wait"
   const stateText = !node.online ? "离线" : node.broken ? "上报异常" : m ? "在线" : "等待上报"
 
-  const cpu = m ? percent(m.cpu, 100) : null
-  const mem = m ? percent(m.mem_used, m.mem_total) : null
-  const disk = m ? percent(m.disk_used, m.disk_total) : null
+
+  // The plan. `expires_in` is the hub's own count of days: the browser's clock
+  // is not the authority on whether a machine has expired, and a laptop across
+  // the date line would otherwise disagree with the hub about it.
+  const days = node.expires_in ?? null
+  const priced = typeof node.price === "number" && node.price > 0
+  const price = !priced
+    ? "免费"
+    : node.currency
+      ? `${money(node.price as number, node.currency)}${node.billing_cycle ? ` / ${cycle(node.billing_cycle)}` : ""}`
+      : money(node.price as number, "")
+  const expire =
+    days === null
+      ? FOREVER
+      : days <= 0
+        ? "已过期"
+        : days <= 30
+          ? `${days} 天后到期`
+          : (node.expires_at ? node.expires_at.slice(0, 10) : `${days} 天后到期`)
 
   return (
     <button
@@ -139,19 +160,9 @@ export function NodeCard({ node, onOpen }: { node: Node; onOpen: (id: number) =>
       </div>
 
       <div className="cols">
-        <Col label="CPU" children={m ? `${m.cpu.toFixed(2)}%` : "—"} bar={cpu} tone={heat(cpu)} />
-        <Col
-          label="内存"
-          children={m ? `${percent(m.mem_used, m.mem_total).toFixed(2)}%` : "—"}
-          bar={mem}
-          tone={heat(mem)}
-        />
-        <Col
-          label="存储"
-          children={m ? `${percent(m.disk_used, m.disk_total).toFixed(2)}%` : "—"}
-          bar={disk}
-          tone={heat(disk)}
-        />
+        <Col label="CPU" children={m ? `${m.cpu.toFixed(2)}%` : "—"} />
+        <Col label="内存" children={m ? `${percent(m.mem_used, m.mem_total).toFixed(2)}%` : "—"} />
+        <Col label="硬盘" children={m ? `${percent(m.disk_used, m.disk_total).toFixed(2)}%` : "—"} />
         {style.showNet && (
           <>
             <Col label="上传" children={m ? rate(m.net_tx) : "—"} mono={false} />
@@ -160,7 +171,15 @@ export function NodeCard({ node, onOpen }: { node: Node; onOpen: (id: number) =>
         )}
       </div>
 
-      {style.showTraffic && <Totals tx={m ? m.total_tx : null} rx={m ? m.total_rx : null} />}
+      <Band
+        tx={m && style.showTraffic ? m.total_tx : null}
+        rx={m && style.showTraffic ? m.total_rx : null}
+        price={style.showPrice ? price : "—"}
+        expire={style.showPrice ? expire : "—"}
+        renew={
+          style.showPrice && days !== null && days <= 0 ? "bad" : style.showPrice && days !== null && days <= 7 ? "warn" : undefined
+        }
+      />
     </button>
   )
 }

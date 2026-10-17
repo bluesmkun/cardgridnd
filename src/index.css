@@ -295,13 +295,28 @@ html:not([data-hairline]) .chart {
   font-size: 15px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
+  /* A rate carries a unit, and two of them in one tile are the widest thing the
+     strip holds: "↑937.8 KB/s ↓11.9 MB/s" is 25 characters. Left to wrap, the
+     tile grew a second line and pushed the whole strip taller than the other
+     three. It shrinks instead -- down to 11px before clipping -- because a smaller
+     figure is still a readable one and a wrapped figure is not. */
+  white-space: nowrap;
+  min-width: 0;
+  /* Shrinks to fit the tile rather than wrapping: see the note above. */
+  container-type: inline-size;
+}
+
+.stat .v.pair > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* The rates under the totals: the same shape, quieter, because the totals are
    the headline and the rates are the present tense. */
 .stat .v.pair.speeds {
   margin-top: 7px;
-  font-size: 13.5px;
+  font-size: 12.5px;
   color: var(--ink-dim);
 }
 
@@ -311,6 +326,14 @@ html:not([data-hairline]) .chart {
  * `grid-auto-rows: 1fr` makes them all as tall as the tallest, so a tile with no
  * detail would centre its label and figure in a taller box than its neighbours
  * and the four labels would stop lining up. */
+/* A figure that is not a figure -- "免费", "—" -- is set lighter than a number,
+   so a tile that has nothing to measure does not shout it as loudly as one that
+   does. */
+.stat .v[data-quiet="true"] {
+  color: var(--ink-faint);
+  font-size: 19px;
+}
+
 .stat .sub {
   margin-top: 6px;
   min-height: 15px;
@@ -395,14 +418,16 @@ html:not([data-hairline]) .chart {
 }
 
 .card {
-  /* Three stacked regions: the identity, the measured columns, the totals.
+  /* Five equal columns, and every row of the card sits on them: the measured
+   * figures, the two traffic bars, the two plan capsules. With the progress bars
+   * gone there is no reason for the ten-track grid they forced, and no leftover
+   * seam that cannot land on a column edge.
    *
    * The identity is centred over the figures rather than sitting at their left,
    * because it is the card's title: everything under it describes this machine,
    * and a title in the corner reads as a table's first cell instead. */
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   row-gap: 8px;
   width: 100%;
   text-align: left;
@@ -416,11 +441,14 @@ html:not([data-hairline]) .chart {
 
 /* Identity: centred, and on its own line above the figures. */
 .card .who {
+  grid-column: 1 / -1;
+  grid-row: 1;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 7px;
-  min-width: 0;
+  min-height: 17px;
+  line-height: 17px;
 }
 
 .card .who .name {
@@ -460,33 +488,18 @@ html:not([data-hairline]) .chart {
  * The floor is `--cell`, one measured column: a percentage needs room for
  * "100.0%" and a rate needs room for "664.2 KB/s", and the widest cell claims
  * extra tracks rather than wrapping onto a line the neighbours do not have. */
+/* The five measured columns are emitted as a fragment, so they are placed on the
+   card's own grid rather than nested in a sub-grid: a nested grid would have its
+   own track count, and the row would drift against the band the moment the two
+   disagreed. */
 .card .cols {
-  display: grid;
-  /* Five columns, equal, always: CPU, 内存, 存储, 上传, 下载. The count is fixed
-     rather than `auto-fill` because the card holds exactly these five, and a
-     grid that decides its own column count turns five cells into a two-row
-     block the moment the card narrows by a few pixels. */
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  align-items: start;
-  gap: 4px 10px;
-  min-width: 0;
+  display: contents;
 }
 
-/* One measured column: label, figure, and a bar for the three that are a share
-   of a total. */
-/* One measured column, centred.
- *
- * The label, the figure and the bar are all centred on the column's own axis
- * rather than sharing a left edge. Five equal tracks left-align inside
- * themselves, so a short figure like "0.5%" leaves a gap at its right that the
- * neighbouring column's "84.30%" does not -- and a row of five readings each
- * starting at its own track's edge reads as five ragged columns. Centred, each
- * label sits over the middle of its own number, which is what makes the row scan
- * as a table.
- *
- * `text-overflow` still works on a centred box: the ellipsis appears at the
- * right-hand end of the clipped line. It is only reached when a rate runs past
- * its track on a very narrow card. */
+/* The five columns are direct children of the card grid (`.cols` is
+   `display: contents`), so each one needs its own column number: five items all
+   placed at `grid-row: 2` would otherwise stack in the same cell and the row
+   would collapse to zero height. */
 .col {
   display: flex;
   flex-direction: column;
@@ -494,7 +507,14 @@ html:not([data-hairline]) .chart {
   gap: 3px;
   min-width: 0;
   text-align: center;
+  grid-row: 2;
 }
+
+.col:nth-child(1) { grid-column: 1; }
+.col:nth-child(2) { grid-column: 2; }
+.col:nth-child(3) { grid-column: 3; }
+.col:nth-child(4) { grid-column: 4; }
+.col:nth-child(5) { grid-column: 5; }
 
 .col .k {
   max-width: 100%;
@@ -526,32 +546,7 @@ html:not([data-hairline]) .chart {
   letter-spacing: -0.005em;
 }
 
-/* The bar under a measured column: a share, drawn thin. */
-/* The bar is the one thing in the column that is not centred: it spans the whole
-   track, because its length is the reading. */
-.col .track {
-  display: block;
-  width: 100%;
-  height: 3px;
-  border-radius: 2px;
-  background: var(--line);
-  overflow: hidden;
-}
 
-.col .track[data-empty="true"] {
-  background: color-mix(in srgb, var(--line) 60%, transparent);
-}
-
-.col .fill {
-  display: block;
-  height: 100%;
-  border-radius: 2px;
-  background: var(--ok);
-  transition: width 0.4s ease;
-}
-
-.col .fill[data-tone="warn"] { background: var(--warn); }
-.col .fill[data-tone="bad"] { background: var(--bad); }
 
 /* ── totals ─────────────────────────────────────────────────────────────── */
 
@@ -561,14 +556,13 @@ html:not([data-hairline]) .chart {
  * since it was installed -- so they share a row as two equal halves rather than
  * taking a column apiece, which would make each look like another reading of the
  * same kind as CPU. */
-.card .totals {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  min-width: 0;
-}
-
 .card .total {
+  /* Five of the ten tracks each, on rows 3 and 4. Ten divides by five and by two,
+     so a bar's inner edge falls exactly between columns 2 and 3 and its outer
+     edge on the card's padding -- the same lines the five measured columns are
+     built on. A bar centred on the midpoint of its two columns would instead
+     land its edges nowhere in particular, and the eye reads the band as a
+     separate table. */
   display: flex;
   align-items: baseline;
   justify-content: center;
@@ -580,6 +574,38 @@ html:not([data-hairline]) .chart {
   background: var(--page);
   white-space: nowrap;
   overflow: hidden;
+}
+
+/* The bars and the plan capsules share the same five-track cells, so a capsule
+   sits under a bar and the pair reads as one table of four figures. */
+/* The two traffic bars split 2:3 on a column edge, and the plan capsules repeat
+ * that split below them.
+ *
+ * Five columns divide into two halves only in the ratio 2:3, so that is the split
+ * taken: 总上传 spans CPU and 内存, 总下载 spans 硬盘, 上传 and 下载, and the
+ * boundary between them is the edge of a column rather than the middle of one.
+ * The earlier layout gave each bar half the card but put the seam at 2.5 columns,
+ * a line that exists nowhere in the row above and read as a misalignment. At 40%
+ * of the card the narrower bar still has room for "总上传 10.0 TB".
+ */
+.card .total:nth-of-type(1) {
+  grid-row: 3;
+  grid-column: 1 / 3;
+}
+
+.card .total:nth-of-type(2) {
+  grid-row: 3;
+  grid-column: 3 / 6;
+}
+
+.card .total:nth-of-type(3) {
+  grid-row: 4;
+  grid-column: 1 / 3;
+}
+
+.card .total:nth-of-type(4) {
+  grid-row: 4;
+  grid-column: 3 / 6;
 }
 
 .card .total .k {
@@ -609,9 +635,6 @@ html:not([data-hairline]) .chart {
     row-gap: 9px;
     padding: 13px 14px 11px;
   }
-  .card .cols {
-    gap: 4px 8px;
-  }
 }
 
 @media (max-width: 620px) {
@@ -621,9 +644,6 @@ html:not([data-hairline]) .chart {
   /* The five columns keep their one row on a phone too: they are already short
      enough for a 330px card at this size, and two rows of two would make every
      card taller than the screen is wide. */
-  .card .cols {
-    gap: 4px 6px;
-  }
   .col .k,
   .col .v,
   .col .v[data-mono="false"] {

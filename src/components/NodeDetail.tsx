@@ -92,6 +92,9 @@ function useWindows(days: number | undefined) {
   return useMemo(() => windows(days ?? 7), [days])
 }
 
+/** The window the detail page opens on. */
+const DEFAULT_HOURS = 6
+
 /** The four resources, each with the axis it needs. */
 function useCharts(rows: Row[], node: Node | null) {
   return useMemo(() => {
@@ -266,7 +269,15 @@ export function NodeDetail({ id, onBack }: { id: number; onBack: () => void }) {
   }, [id])
 
   const ranges = useWindows(node?.metrics ? 7 : undefined)
-  const active = hours ?? ranges[ranges.length - 1]?.hours ?? 24
+  // Six hours by default, not the widest window. The widest is what a reader
+  // picks when they go looking for a trend; what they arrive for is what the
+  // machine is doing today, and a week of buckets compresses this morning into
+  // a few pixels. `windows()` always lists 6 hours, but fall back in case a hub
+  // reports a history shorter than that.
+  const preferred = ranges.some((r) => r.hours === DEFAULT_HOURS)
+    ? DEFAULT_HOURS
+    : (ranges[ranges.length - 1]?.hours ?? 24)
+  const active = hours ?? preferred
 
   useEffect(() => {
     let alive = true

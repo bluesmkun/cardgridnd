@@ -142,7 +142,11 @@ function Cost({ nodes }: { nodes: Node[] }) {
     for (const node of nodes) {
       const per = monthlyCost(node)
       const left = residualValue(node)
-      if (per === 0 && left === 0) continue
+      // A free machine still belongs in the sum. Skipping it looked harmless --
+      // adding zero cannot change a total -- but it left the map empty when every
+      // machine in view was free or unpriced, and an empty map took the whole
+      // tile off the strip. The strip is four positions; a reader who sees three
+      // cannot tell whether the fourth is hidden, broken, or zero.
       const code = node.currency || ""
       const at = byCurrency.get(code) ?? { per: 0, left: 0 }
       at.per += per
@@ -156,6 +160,11 @@ function Cost({ nodes }: { nodes: Node[] }) {
     let left = 0
     let missing = false
     for (const [code, at] of byCurrency) {
+      // A machine with no price and no residue converts to nothing whatever the
+      // rate is, and asking for a rate for an empty currency code -- which is
+      // what a free plan sends -- always fails. Treat zero as zero rather than as
+      // a failed conversion, or one free machine takes the fleet total with it.
+      if (at.per === 0 && at.left === 0) continue
       const p = convert(at.per, code, currency, rates)
       const l = convert(at.left, code, currency, rates)
       if (p === null || l === null) {
@@ -170,27 +179,45 @@ function Cost({ nodes }: { nodes: Node[] }) {
     return { byCurrency, missing }
   }, [nodes, currency, rates])
 
-  const bills = [...byCurrency.entries()].filter(([, at]) => at.per > 0 || at.left > 0)
-  if (bills.length === 0) return null
-
   // A conversion that did not come back answers nothing: showing the raw figures
-  // under a tile whose label promises one currency would be worse than no tile.
+  // under a tile whose label promises one currency would be worse than none.
   if (currency && missing) return null
 
-  const [code, at] = currency ? bills[0] : bills.sort((a, b) => b[1].per - a[1].per)[0]
-  const shown = currency
-    ? money(at.per, currency)
-    : bills.slice(0, 2).map(([c, v]) => money(v.per, c)).join(" / ")
+  const bills = [...byCurrency.entries()].filter(([, at]) => at.per > 0 || at.left > 0)
+
+  // Everything in view is free or unpriced. That is a real answer, and the tile
+  // says so instead of vanishing.
+  if (bills.length === 0) {
+    const free = nodes.length > 0 && nodes.every((n) => monthlyCost(n) === 0)
+    return (
+      <Tile label="费用">
+        <div className="v" data-quiet="true">
+          {free ? "免费" : "—"}
+        </div>
+        <div className="sub">
+          {free ? (currency ? "全部免费" : "全部免费") : "未标价"}
+        </div>
+      </Tile>
+    )
+  }
+
+  // One currency: the figure the tile is about. Several, and no conversion
+  // asked for: they are shown as separate figures rather than joined by a slash,
+  // because "US$51.00 / ¥15.00" reads as one amount written two ways instead of
+  // two amounts that nothing has added up.
+  const sorted = currency ? bills : [...bills].sort((a, b) => b[1].per - a[1].per)
+  const [code, at] = sorted[0]
+  const rest = sorted.length - 1
 
   const sub = currency
     ? `剩余价值 ${money(at.left, currency)}`
-    : bills.length > 1
-      ? `${bills.length} 种币种 · 各自计价`
+    : rest > 0
+      ? `${rest} 种币种未折算`
       : `剩余价值 ${money(at.left, code)}`
 
   return (
     <Tile label="费用">
-      <div className="v">{shown}</div>
+      <div className="v">{money(at.per, code)}</div>
       <div className="sub">{sub}</div>
     </Tile>
   )

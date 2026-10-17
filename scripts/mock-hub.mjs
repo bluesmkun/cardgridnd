@@ -25,6 +25,8 @@ const FLEET = [
   { id: 4, name: "sg-core-01", group: "新加坡", country: "SG", os: "debian", virt: "lxc", cores: 4, mem: 8, disk: 100, price: 180, currency: "CNY", cycle: "yearly", expires: 210, tx: 1.2, limit: 3000, mode: "sum" },
   { id: 5, name: "us-west-01", group: "美国", country: "US", os: "ubuntu", virt: "kvm", cores: 2, mem: 4, disk: 50, price: 9, currency: "USD", cycle: "monthly", expires: 61, tx: 0.8, limit: 1000, mode: "down" },
   { id: 6, name: "fi-backup-01", group: "欧洲", country: "FI", os: "alpine", virt: "kvm", cores: 1, mem: 2, disk: 20, price: 0, currency: "", cycle: "", expires: null, tx: 0.05, limit: 0, mode: "" },
+  // 一台免费机放在 日本 组：那一组整体没有费用，用来验证费用格不消失。
+  { id: 7, name: "jp-free-01", group: "日本", country: "JP", os: "debian", virt: "lxc", cores: 1, mem: 1, disk: 10, price: 0, currency: "", cycle: "", expires: null, tx: 0.02, limit: 0, mode: "" },
 ]
 
 const DAY = 86400

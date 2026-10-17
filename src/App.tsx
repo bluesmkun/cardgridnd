@@ -22,6 +22,19 @@ type Selected = string | null
 /** The node's group as the tab strip needs it, where "" means ungrouped. */
 const UNGROUPED = ""
 
+/**
+ * The two tabs that filter on reachability rather than on the hub's own grouping.
+ *
+ * They are not group names: an operator is free to call a group 在线, and a tab
+ * keyed on that string would then have to mean two different things. The tabs
+ * are built as a list of `Tab` records instead, each with its own predicate, so
+ * the filters and the group names never share a namespace.
+ */
+const ONLINE = "\u0000online"
+const OFFLINE = "\u0000offline"
+
+type Tab = { key: string; label: string; keep: (node: Node) => boolean }
+
 function groupOf(node: Node): string {
   return node.group ?? ""
 }
@@ -66,26 +79,37 @@ export function App() {
   // them in: sorting by name would reorder the tabs the moment a group is
   // renamed. Nodes with no group are kept, not dropped -- with even one group in
   // play they still need somewhere to go.
-  const tabs = useMemo(() => {
+  const tabs = useMemo<Tab[]>(() => {
     if (!nodes) return []
-    const named = groupsOf(nodes)
-    if (named.length === 0) return []
-    const ungrouped = nodes.some((n) => groupOf(n) === UNGROUPED)
-    return ungrouped ? [...named, UNGROUPED] : named
+    // Reachability first: 在线 and 离线 are what a reader reaches for when a
+    // machine stops answering, and they should not be buried behind a dozen
+    // group names.
+    const reach: Tab[] = []
+    if (nodes.some((n) => n.online)) reach.push({ key: ONLINE, label: "在线", keep: (n) => n.online })
+    if (nodes.some((n) => !n.online)) reach.push({ key: OFFLINE, label: "离线", keep: (n) => !n.online })
+
+    const named = groupsOf(nodes).map<Tab>((group) => ({ key: group, label: group, keep: (n) => groupOf(n) === group }))
+    // Ungrouped nodes are kept rather than dropped: with even one group in play
+    // they still need somewhere to go.
+    if (nodes.some((n) => groupOf(n) === UNGROUPED)) {
+      named.push({ key: UNGROUPED, label: "未分组", keep: (n) => groupOf(n) === UNGROUPED })
+    }
+
+    // A single tab is not a choice; the strip only appears once there is one.
+    if (reach.length + named.length < 2) return []
+    return [...reach, ...named]
   }, [nodes])
 
   // A group can disappear between two pushes, when the operator moves its last
   // node into another one. Rather than leave the grid empty under a tab that no
   // longer exists, this falls back to the whole fleet.
-  const active = selected !== null && tabs.includes(selected) ? selected : null
+  const activeTab = selected !== null ? tabs.find((t: Tab) => t.key === selected) ?? null : null
 
   const shown = useMemo(() => {
     if (!nodes) return null
-    if (active === null) return nodes
-    return nodes.filter((node) => groupOf(node) === active)
-  }, [nodes, active])
-
-  const label = (group: string) => (group === UNGROUPED ? "未分组" : group)
+    if (activeTab === null) return nodes
+    return nodes.filter(activeTab.keep)
+  }, [nodes, activeTab])
 
   if (openId !== null) {
     return (
@@ -125,20 +149,20 @@ export function App() {
             <button
               type="button"
               className="tab"
-              data-on={active === null ? "true" : undefined}
+              data-on={activeTab === null ? "true" : undefined}
               onClick={() => setSelected(null)}
             >
               全部
             </button>
-            {tabs.map((group) => (
+            {tabs.map((tab: Tab) => (
               <button
-                key={group}
+                key={tab.key}
                 type="button"
                 className="tab"
-                data-on={active === group ? "true" : undefined}
-                onClick={() => setSelected(group)}
+                data-on={activeTab?.key === tab.key ? "true" : undefined}
+                onClick={() => setSelected(tab.key)}
               >
-                {label(group)}
+                {tab.label}
               </button>
             ))}
           </div>

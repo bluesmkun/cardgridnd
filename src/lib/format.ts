@@ -367,14 +367,41 @@ export function quarters(top: number): number[] {
 }
 
 /**
+ * Round multipliers for a byte axis, carried across four decades in the same
+ * 1024-based unit: 1, 1.5, 2 ... 10, 15, 20 ... 100, ...
+ *
+ * A single decade is not enough, because the unit a figure is measured in is a
+ * power of 1024 and the ladder steps by 10. A 16GB disk is 16 in GB (past the
+ * ladder's top of 10) and 0.016 in TB (below its bottom of 1) -- no multiplier
+ * covers it either way, so every figure in the top of each decade was unroundable
+ * and fell through to the old `?? 10` fallback: a 80GB disk got an axis top of
+ * 10GB and its line was drawn far above the plot.
+ *
+ * Extending the ladder into the next decades means the figure always has a
+ * neighbour, and because the steps stay round multiples in one unit the axis
+ * ends on a label like "100 GB" rather than "1.36 TB".
+ */
+const BYTE_LADDER = [
+  1, 1.5, 2, 2.5, 3, 4, 5, 7.5, 10,
+  15, 20, 25, 30, 40, 50, 60, 75, 100,
+  120, 150, 200, 250, 300, 400, 500, 600, 750, 1000,
+  1200, 1500, 2000, 2500, 3000, 4000, 5000, 6000, 7500, 10000,
+]
+
+/**
  * A zero-anchored axis top for a byte quantity, rounded up to a round value in
  * its own unit, so memory and disk panels end on a label like "2 GB".
+ *
+ * The unit is chosen first -- the largest power of 1024 that keeps the figure at
+ * or above 1 -- and then the ladder supplies the next round number at or above
+ * it. Unlike a one-decade ladder this cannot run out until ten petabytes.
  */
 export function bytesTop(max: number, floor: number): number {
   const target = Math.max(max, floor)
-  const unit = 1024 ** Math.floor(Math.log(target) / Math.log(1024))
+  if (!(target > 0)) return 1024 ** 3
+  const unit = 1024 ** Math.max(0, Math.floor(Math.log(target) / Math.log(1024)))
   const v = target / unit
-  const step = LADDER.find((m) => m >= v) ?? 10
+  const step = BYTE_LADDER.find((m) => m >= v) ?? 10 ** Math.ceil(Math.log10(v))
   return step * unit
 }
 
