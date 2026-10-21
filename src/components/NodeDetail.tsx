@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
-import { api, type Node } from "@/lib/api"
+import { api, safeNodes, type Node } from "@/lib/api"
 import { Chart, type Series } from "@/components/Charts"
 import { Country, usage } from "@/components/NodeCard"
 import {
@@ -200,6 +200,11 @@ function useProbes(
         // A small ordered set, so the palette is by position.
         color: PROBE_COLORS[i % PROBE_COLORS.length],
         values: drawn,
+        // Three probes at their own offsets leave this probe with a sample in
+        // roughly one bucket of every three, so the line has to bridge the two
+        // empty ones between its own readings or it never spans a pixel column.
+        // A probe that actually stops reporting leaves far more than that.
+        gap: Math.max(2, names.length),
       } satisfies Series
     })
 
@@ -256,7 +261,12 @@ export function NodeDetail({ id, onBack }: { id: number; onBack: () => void }) {
     api<{ nodes: Node[] }>("/nodes")
       .then((data) => {
         if (!alive) return
-        const found = data.nodes.find((n) => n.id === id)
+        // Through the same check the grid uses. The detail page reads metrics
+        // fields directly (`m.cpu.toFixed(1)`), so a report with one null figure
+        // -- which the hub does send, and which `safeNodes` is what turns into a
+        // whole-node `broken` -- crashed the render and left a blank page. The
+        // list and the detail page have to agree about what a usable report is.
+        const found = safeNodes(data.nodes).find((n) => n.id === id)
         if (found) setNode(found)
         else setError("这个节点不存在，可能已经被移除。")
       })
@@ -493,7 +503,6 @@ export function NodeDetail({ id, onBack }: { id: number; onBack: () => void }) {
               rows={plotRows}
               series={[charts.memory]}
               format={axisBytes}
-              unit="B"
               hours={active}
               top={charts.memTop}
             />
@@ -508,7 +517,6 @@ export function NodeDetail({ id, onBack }: { id: number; onBack: () => void }) {
               rows={plotRows}
               series={[charts.disk]}
               format={axisBytes}
-              unit="B"
               hours={active}
               top={charts.diskTop}
             />
@@ -519,7 +527,7 @@ export function NodeDetail({ id, onBack }: { id: number; onBack: () => void }) {
               rows={plotRows}
               series={[charts.netRx, charts.netTx]}
               format={axisBytes}
-              unit="B/s"
+              reading={byteRate}
               hours={active}
               domain={charts.netAxis.domain}
               ticks={charts.netAxis.ticks}
@@ -578,7 +586,6 @@ export function NodeDetail({ id, onBack }: { id: number; onBack: () => void }) {
                 rows={probes.rows}
                 series={probes.series}
                 format={(n) => `${n.toFixed(0)}ms`}
-                unit="ms"
                 hours={active}
                 top={probes.top}
                 ticks={quarters(probes.top)}

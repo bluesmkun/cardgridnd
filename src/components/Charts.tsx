@@ -24,6 +24,23 @@ export type Series = {
   values: (number | null)[]
   /** Dashed, for a series the operator should read as secondary. */
   dashed?: boolean
+  /**
+   * How many empty buckets in a row are bridged rather than breaking the line.
+   *
+   * A probe reports on its own schedule. Merged onto one time axis, three probes
+   * sampling every 60s at different offsets produce 1081 buckets of which each
+   * probe occupies about a third -- so on a plot 868px wide, most pixel columns
+   * hold no sample at all for a given probe. Treating every empty bucket as a
+   * break (which is right for a node that stopped reporting) cut each probe's
+   * line into fragments one column wide, and since a fragment needs two points
+   * to be drawn, the latency chart came out blank.
+   *
+   * A gap here is the absence of a *sample*, not the absence of a *line*: the
+   * probe was fine, it just was not this probe's turn. Bridging a few buckets is
+   * what joining the dots means, and a real outage still breaks the line because
+   * it leaves many more empty buckets than this.
+   */
+  gap?: number
 }
 
 /** Element width, tracked so the plot is drawn in real pixels and text stays crisp. */
@@ -65,18 +82,25 @@ function segments(
   x: (i: number) => number,
   y: (v: number, i: number) => number,
   budget: number,
+  gap = 0,
 ) {
   const paths: string[] = []
 
   // One sample per pixel or fewer: join them in order, nothing to collapse.
   if (values.length <= budget) {
     let current: string[] = []
+    let misses = 0
     values.forEach((v, i) => {
       if (v === null || !Number.isFinite(v)) {
-        if (current.length > 1) paths.push(current.join(" "))
-        current = []
+        // `gap` empty buckets in a row are bridged; the next one closes the span.
+        misses += 1
+        if (misses > gap) {
+          if (current.length > 1) paths.push(current.join(" "))
+          current = []
+        }
         return
       }
+      misses = 0
       current.push(`${current.length ? "L" : "M"}${x(i).toFixed(2)} ${y(v, i).toFixed(2)}`)
     })
     if (current.length > 1) paths.push(current.join(" "))
@@ -87,6 +111,7 @@ function segments(
   const columns = Math.max(1, Math.floor(budget))
   const per = values.length / columns
   let current: string[] = []
+  let emptyRun = 0
 
   for (let c = 0; c < columns; c++) {
     const from = Math.floor(c * per)
@@ -109,12 +134,17 @@ function segments(
     }
 
     if (low === Infinity) {
-      // A column with no reading: break the line here, exactly as a single null
-      // sample does.
-      if (current.length > 1) paths.push(current.join(" "))
-      current = []
+      // A column with no reading. Bridged like a single empty bucket is, and for
+      // the same reason: the tolerance is expressed in buckets, so convert the
+      // column's bucket count before deciding.
+      emptyRun += Math.max(1, Math.round(per))
+      if (emptyRun > gap) {
+        if (current.length > 1) paths.push(current.join(" "))
+        current = []
+      }
       continue
     }
+    emptyRun = 0
 
     // Enter the column at the earlier extreme and leave at the later one, so the
     // span joins its neighbours at the height the readings actually reached
@@ -163,9 +193,22 @@ type Props = {
   /** A fixed axis, used by the logarithmic rate chart. */
   domain?: [number, number]
   ticks?: number[]
+  /**
+   * Formats one axis label and one reading, including any unit.
+   *
+   * There used to be a separate `unit` appended after this, so every format that
+   * already carried a suffix printed twice ("44msms", "3.19 GBB"). Anything that
+   * needs to differ between the axis and the readout overrides `reading` below.
+   */
   format: (n: number) => string
-  /** Marks the chart as a percentage of a known total. */
-  unit?: string
+  /**
+   * Formats one reading when it should differ from the axis label.
+   *
+   * A transfer rate is the case: the axis says "1 MB" because a unit repeated on
+   * every gridline is noise, while the reading says "1.2 MB/s" because a rate
+   * without its "/s" is a quantity of data, not a speed.
+   */
+  reading?: (n: number) => string
   /** Window width in hours, which decides the tick format. */
   hours: number
   /** Hidden by the legend. */
@@ -189,7 +232,7 @@ export function Chart({
   domain,
   ticks: fixedTicks,
   format,
-  unit,
+  reading,
   hours,
   hidden,
   onToggle,
@@ -200,16 +243,34 @@ export function Chart({
   const [at, setAt] = useState<number | null>(null)
 
   const shown = series.filter((s) => !hidden?.has(s.id))
-  // Room on the left for a value like "1.5 GB"; nothing on the right, because a
-  // line that runs off the edge of the plot is read as continuing, and a pad
-  // there only shortens the window.
-  const pad = { l: 46, r: 8, t: 10, b: 20 }
-  const inner = Math.max(10, width - pad.l - pad.r)
-  const plot = height - pad.t - pad.b
 
   const lo = domain ? domain[0] : 0
   const hi = domain ? domain[1] : (top ?? 1)
   const log = Boolean(domain)
+
+  const yTicks = useMemo(() => {
+    if (fixedTicks?.length) return fixedTicks
+    return quarters(hi).filter((v) => v >= lo)
+  }, [fixedTicks, hi, lo])
+
+  // The left pad is measured from the widest label rather than fixed.
+  //
+  // It was 46px, which fits "1.5 GB" but not "100 GB" or "7.5 GB": at 9.5px the
+  // longer labels ran past the left edge of the canvas and lost their first
+  // character -- the axis read "00 GB" and "00 KB", and nothing in the plot
+  // looked wrong enough to notice. Labels are monospace and tabular, so the
+  // widest one is the longest string, and its length is a good enough estimate
+  // to reserve room for before the text has ever been laid out.
+  const padLeft = useMemo(() => {
+    const widest = yTicks.reduce((w, v) => Math.max(w, format(v).length), 0)
+    return Math.max(34, Math.ceil(widest * 6.4) + 12)
+  }, [yTicks, format])
+
+  // Nothing on the right: a line that runs off the edge of the plot is read as
+  // continuing, and a pad there only shortens the window.
+  const pad = { l: padLeft, r: 8, t: 10, b: 20 }
+  const inner = Math.max(10, width - pad.l - pad.r)
+  const plot = height - pad.t - pad.b
 
   const y = useMemo(() => {
     if (log) {
@@ -229,11 +290,6 @@ export function Chart({
     return (i: number) => pad.l + ((rows[i].ts - first) / span) * inner
   }, [rows, pad.l, inner])
 
-  const yTicks = useMemo(() => {
-    if (fixedTicks?.length) return fixedTicks
-    return quarters(hi).filter((v) => v >= lo)
-  }, [fixedTicks, hi, lo])
-
   const xTicks = useMemo(() => {
     if (rows.length < 2) return []
     return timeTicks(rows[0].ts, rows[rows.length - 1].ts, Math.max(2, Math.min(7, Math.floor(inner / 90))))
@@ -248,13 +304,37 @@ export function Chart({
   const picked = at !== null && at >= 0 && at < rows.length ? at : null
   const base = pad.t + plot
 
+  // Hovering finds the bucket whose timestamp is nearest the pointer, not the
+  // bucket at that fraction of the array.
+  //
+  // The two are only the same when every bucket is the same distance apart, and
+  // a latency chart's rows are the union of three probes reporting on their own
+  // schedules: gaps of one bucket sit beside gaps of three. Reading the pointer
+  // as an array index put the crosshair on a sample whose time did not match the
+  // stamp printed underneath it, and the mismatch grew towards the right of the
+  // plot -- the pointer and the line visibly drifted apart. Searching by time
+  // uses the same mapping the line is drawn with, so they cannot disagree.
   const pick = (event: React.PointerEvent<SVGSVGElement>) => {
     if (rows.length < 2) return
     const box = event.currentTarget.getBoundingClientRect()
-    const px = event.clientX - box.left
-    const ratio = (px - pad.l) / inner
-    const index = Math.round(ratio * (rows.length - 1))
-    setAt(Math.max(0, Math.min(rows.length - 1, index)))
+    const first = rows[0].ts
+    const span = Math.max(rows[rows.length - 1].ts - first, 1)
+    const wanted = first + ((event.clientX - box.left - pad.l) / inner) * span
+
+    let lo = 0
+    let hi = rows.length - 1
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1
+      if (rows[mid].ts < wanted) lo = mid + 1
+      else hi = mid
+    }
+    // `lo` is the first row at or past the pointer; the neighbour before it may
+    // be nearer.
+    const after = lo
+    const before = Math.max(0, lo - 1)
+    const index =
+      Math.abs(rows[after].ts - wanted) < Math.abs(rows[before].ts - wanted) ? after : before
+    setAt(index)
   }
 
   const clock = clockFor(hours)
@@ -291,7 +371,7 @@ export function Chart({
 
             {shown.map((s) => (
               <g key={s.id}>
-                {segments(s.values, x, y, inner).map((d, i) => (
+                {segments(s.values, x, y, inner, s.gap).map((d, i) => (
                   <path
                     key={i}
                     d={d}
@@ -334,7 +414,7 @@ export function Chart({
               return (
                 <span key={s.id}>
                   <i className="dot" style={{ background: s.color }} />
-                  {s.name} {v === null ? "—" : `${format(v)}${unit ?? ""}`}
+                  {s.name} {v === null ? "—" : (reading ?? format)(v)}
                 </span>
               )
             })}

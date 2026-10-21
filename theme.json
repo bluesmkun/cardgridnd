@@ -2,7 +2,7 @@
   "name": "格 Cardgrid",
   "short": "cardgridnd",
   "description": "极简卡片网格探针主题：一屏一格的服务器卡片，留白为骨、发丝为线",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "author": "poooo",
   "url": "https://github.com/bluesmkun/cardgridnd",
   "config": [

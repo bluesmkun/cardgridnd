@@ -27,6 +27,9 @@ const FLEET = [
   { id: 6, name: "fi-backup-01", group: "欧洲", country: "FI", os: "alpine", virt: "kvm", cores: 1, mem: 2, disk: 20, price: 0, currency: "", cycle: "", expires: null, tx: 0.05, limit: 0, mode: "" },
   // 一台免费机放在 日本 组：那一组整体没有费用，用来验证费用格不消失。
   { id: 7, name: "jp-free-01", group: "日本", country: "JP", os: "debian", virt: "lxc", cores: 1, mem: 1, disk: 10, price: 0, currency: "", cycle: "", expires: null, tx: 0.02, limit: 0, mode: "" },
+  // 一份残缺的上报：cpu 与 load 都是 null，其余字段正常。hub 会这样发，
+  // 详情页必须把它当作「上报异常」而不是崩掉。
+  { id: 8, name: "de-broken-01", group: "欧洲", country: "DE", os: "debian", virt: "kvm", cores: 2, mem: 4, disk: 40, price: 5, currency: "EUR", cycle: "monthly", expires: 12, tx: 0.3, limit: 500, mode: "sum", broken: true },
 ]
 
 const DAY = 86400
@@ -73,7 +76,18 @@ function node(spec, t) {
     return { ...base(spec, t), online: true, metrics: null, last_seen: t - 40, last_seen_ago: 40 }
   }
   if (spec.id === 5) {
+    // A single unusable figure. JSON turns the NaN into null, which is what the
+    // hub actually sends when an agent reports a metric it could not read.
     return { ...base(spec, t), online: true, metrics: { ...plainMetrics(spec, t), cpu: Number.NaN } }
+  }
+  if (spec.id === 8) {
+    // Two of them, one of which is the array: the case that crashed the detail
+    // page before it went through `safeNodes`.
+    return {
+      ...base(spec, t),
+      online: true,
+      metrics: { ...plainMetrics(spec, t), cpu: Number.NaN, load: null },
+    }
   }
   return { ...base(spec, t), online: true, metrics: plainMetrics(spec, t) }
 }
@@ -120,13 +134,20 @@ function answer(id, hours, points, series, t) {
   const out = { metrics: [], ping: [], probes: {}, step }
   if (series !== "ping") out.metrics = rows
   if (series !== "metrics") {
+    // Real probes report on their own schedules, so the merged time axis is not
+    // evenly spaced: the gaps differ between one and three buckets. A mock where
+    // every probe ticks at the same instant cannot reproduce that, and the
+    // pointer/crosshair drift it caused only showed up against a real hub. The
+    // offsets below are what makes the local copy of the page worth trusting.
     const probeStep = Math.max(step, 60)
+    const OFFSETS = { 1: 0, 2: 17, 3: 41 }
     for (const [task, name] of Object.entries(PROBES)) {
       out.probes[task] = name
       // A per-probe baseline and jitter, so three carriers are visibly different
       // lines rather than three copies of one.
       const base = 18 + Number(task) * 34
-      for (let ts = t - hours * 3600; ts <= t; ts += probeStep) {
+      const start = t - hours * 3600 + (OFFSETS[task] ?? 0)
+      for (let ts = start; ts <= t; ts += probeStep) {
         const spike = spec.id === 4 && Number(task) === 2 && (ts % 3600) < probeStep
         // The drift has to be slow against the sample spacing, or it aliases.
         //
